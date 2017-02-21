@@ -24,9 +24,9 @@ var points = [];
 var angle = 0;
 
 var a = 1,
-    b = 1,
+    b = 0.63,
     c = 1,
-    d = 0.99;
+    d = 0.995;
 
 panel
     .addRange("a", -1, 1, a, 0.01)
@@ -39,12 +39,77 @@ panel
         c = panel.getValue("c");
         d = panel.getValue("d");
         points = [];
+        context.clear("#000");
     })
 
-bitlib.anim(update).start();
+
+context.clear("#111");
+context.lineWidth = 0.25;
+
+context.globalCompositeOperation = 'lighter';
+var anim = bitlib.anim(update, 1000);
+anim.start();
+
+
+document.getElementById("canvas")
+
+function getCol(r, g, b){
+    var obj = {red: bitlib.math.clamp(r, 0, 255), green: bitlib.math.clamp(g, 0, 255), blue: bitlib.math.clamp(b, 0, 255)};
+    obj.getHex = function(){
+        return [this.red, this.green, this.blue]
+            .map(function(v){
+                var hexVal = Math.floor(v).toString(16);
+                return "0".repeat(2-hexVal.length) + hexVal;
+            })
+            .reduce(function(acc, val){
+                return acc + val;
+            }, "#");
+    }
+    obj.map = function(f){
+        return getCol(f(this.red), f(this.green), f(this.blue));
+    }
+    obj.add = function(colour2){
+        return getCol(this.red + colour2.red, this.green + colour2.green, this.blue + colour2.blue);
+    }
+    obj.mix = function(colour2, fraction){
+        var c1 = this.map(function(v){return v*(1-fraction)});
+        var c2 = colour2.map(function(v){return v*fraction});
+        return c1.add(c2);
+    }
+    return obj;
+}
+
+function getRange(cols){
+    var obj = {colours: cols};
+    obj.getValueAt = function(frac){
+        var len = this.colours.length;
+        var stepLength = 1/(len-1) + 0.000001;
+
+        var c1 = this.colours[Math.floor(frac/stepLength)];
+        var c2 = this.colours[Math.floor(frac/stepLength+1)];
+
+        var mix = (frac % stepLength) / stepLength;
+        
+        return c1.mix(c2, mix);
+    }
+    return obj;
+}
+
+var blue = getCol(32, 107, 229);
+var white = getCol(255, 255, 255);
+var red = getCol(201, 24, 50);
+var orange = getCol(224, 97, 33)
+
+var colRange = getRange([blue, orange].reverse());
+
+var minSpeed = 0;
+var maxSpeed = 0;
+
+
+var drawConstructionLines = false;
 
 function update() {
-    context.clear();
+    
     var p0 = {
         x: width / 2 + Math.sin(angle * a) * width * 0.4,
         y: height - 20
@@ -68,24 +133,23 @@ function update() {
         points.push(p4);
     }
 
-    context.strokeCircle(p4.x, p4.y, 5);
+    if(points.length >= 2){
+        var i = points.length -1;
+        context.beginPath();
+        context.moveTo(points[i-1].x, points[i-1].y);    
+        var speed = bitlib.math.dist(points[i-1], points[i]);
 
-    context.lineWidth = 0.25;
-    context.beginPath();
-    for(var i = 0; i < points.length; i++) {
+        maxSpeed = Math.max(speed, maxSpeed);
+        minSpeed = Math.min(speed+0.001, minSpeed);
+
+        var relSpeed = (speed - minSpeed)/(maxSpeed - minSpeed);
+
+        col = colRange.getValueAt(relSpeed);
+
+        context.strokeStyle=col.getHex();
+
         context.lineTo(points[i].x, points[i].y);
+        context.stroke();
     }
-    context.stroke();
 
-    context.lineWidth = 1;
-    context.fillCircle(p0.x, p0.y, 5);
-    context.fillCircle(p1.x, p1.y, 5);
-    context.fillCircle(p2.x, p2.y, 5);
-    context.fillCircle(p3.x, p3.y, 5);
-    context.beginPath();
-    context.moveTo(p0.x, p0.y);
-    context.lineTo(p1.x, p1.y);
-    context.moveTo(p2.x, p2.y);
-    context.lineTo(p3.x, p3.y);
-    context.stroke();
 }
